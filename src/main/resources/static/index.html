@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Manager</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f0f2f5;
+      color: #1f2937;
+      padding: 2rem 1.5rem;
+    }
+
+    /* ── Page header ── */
+    .page-header { margin-bottom: 1.75rem; max-width: 1060px; }
+    .page-header h1 { font-size: 1.55rem; color: #111827; }
+    .page-header p  { font-size: .875rem; color: #6b7280; margin-top: .3rem; }
+
+    /* ── Cards ── */
+    section {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      max-width: 1060px;
+    }
+
+    .section-head { margin-bottom: 1rem; }
+    .section-head h2 { font-size: 1rem; font-weight: 700; color: #111827; }
+    .section-head p  { font-size: .82rem; color: #6b7280; margin-top: .25rem; line-height: 1.5; }
+
+    /* ── Form ── */
+    label {
+      display: block;
+      font-size: .82rem;
+      font-weight: 600;
+      color: #374151;
+      margin-top: .85rem;
+      margin-bottom: .25rem;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: .45rem .7rem;
+      border: 1px solid #d1d5db;
+      border-radius: 5px;
+      font-size: .9rem;
+      color: #1f2937;
+      background: #fff;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #4361ee;
+      box-shadow: 0 0 0 3px rgba(67,97,238,.12);
+    }
+    textarea { resize: vertical; min-height: 66px; }
+
+    .form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .form-row > div { flex: 1; min-width: 140px; }
+
+    /* ── Primary / secondary buttons ── */
+    .btn {
+      display: inline-block;
+      padding: .48rem 1.2rem;
+      font-size: .9rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-primary { background: #4361ee; color: #fff; }
+    .btn-primary:hover { background: #3451d1; }
+    .btn-primary:disabled { opacity: .5; cursor: default; }
+    .btn-secondary {
+      background: #e5e7eb; color: #374151;
+      font-size: .82rem; padding: .3rem .75rem;
+    }
+    .btn-secondary:hover { background: #d1d5db; }
+
+    /* ── Feedback messages ── */
+    .msg {
+      padding: .6rem .9rem;
+      border-radius: 5px;
+      font-size: .85rem;
+      margin-top: .75rem;
+      border-left: 4px solid;
+      line-height: 1.5;
+    }
+    .msg-ok   { background: #f0fdf4; border-color: #22c55e; color: #166534; }
+    .msg-err  { background: #fef2f2; border-color: #ef4444; color: #991b1b; white-space: pre-wrap; }
+    .msg-info { background: #f0f9ff; border-color: #38bdf8; color: #0369a1; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: .15rem .5rem;
+      border-radius: 10px;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    .LOW         { background: #dcfce7; color: #166534; }
+    .MEDIUM      { background: #fef9c3; color: #854d0e; }
+    .HIGH        { background: #fee2e2; color: #991b1b; }
+    .TODO        { background: #dbeafe; color: #1e40af; }
+    .IN_PROGRESS { background: #fef3c7; color: #92400e; }
+    .DONE        { background: #d1fae5; color: #065f46; }
+
+    /* ── Task table ── */
+    /* Horizontal scroll on narrow viewports so the table never breaks the layout */
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; margin-top: .25rem; }
+    thead th {
+      text-align: left;
+      padding: .5rem .7rem;
+      background: #f9fafb;
+      border-bottom: 2px solid #e5e7eb;
+      color: #6b7280;
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: .6rem .7rem;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: top;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    /* Hover only on data rows, not expanded detail rows */
+    tbody tr:not(.detail-row):hover > td { background: #fafbff; }
+
+    /* Column sizing & long-text protection */
+    .col-id    { width: 2rem; color: #9ca3af; font-size: .8rem; white-space: nowrap; }
+    .col-title { min-width: 140px; max-width: 200px;
+                 overflow-wrap: break-word; word-break: break-word; font-weight: 500; }
+    .col-desc  { min-width: 160px; max-width: 280px;
+                 overflow-wrap: break-word; word-break: break-word;
+                 color: #6b7280; font-size: .84rem; }
+    .col-due   { white-space: nowrap; min-width: 6rem; }
+    .col-badge { white-space: nowrap; }
+    .col-actions { min-width: 220px; vertical-align: middle; }
+
+    /* ── Row action buttons ── */
+    .act-group { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .btn-act {
+      margin: 0;
+      padding: .24rem .6rem;
+      font-size: .775rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-act:disabled { opacity: .38; cursor: default; }
+    .ba-done      { background: #d1fae5; color: #065f46; }
+    .ba-done:not(:disabled):hover { background: #a7f3d0; }
+    .ba-delete    { background: #fee2e2; color: #991b1b; }
+    .ba-delete:hover { background: #fca5a5; }
+    .ba-summarize { background: #ede9fe; color: #5b21b6; }
+    .ba-summarize:hover { background: #ddd6fe; }
+    .ba-breakdown { background: #e0f2fe; color: #0369a1; }
+    .ba-breakdown:hover { background: #bae6fd; }
+
+    /* ── Expanded detail rows (summary + breakdown) ── */
+    .detail-row td {
+      padding: .7rem 1rem .8rem 1.25rem;
+    }
+    .summary-row td {
+      background: #faf5ff;
+      border-left: 3px solid #a78bfa;
+      border-bottom: 2px solid #ede9fe;
+    }
+    .breakdown-row td {
+      background: #f0f9ff;
+      border-left: 3px solid #38bdf8;
+      border-bottom: 2px solid #e0f2fe;
+    }
+
+    .row-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: .4rem;
+    }
+    .summary-row   .row-label { color: #7c3aed; }
+    .breakdown-row .row-label { color: #0369a1; }
+
+    .row-body { font-size: .875rem; color: #374151; line-height: 1.55; font-style: italic; }
+
+    .breakdown-row ol {
+      margin: .4rem 0 .8rem 1.3rem;
+      padding: 0;
+      font-style: normal;
+    }
+    .breakdown-row li {
+      font-size: .875rem;
+      color: #374151;
+      line-height: 1.5;
+      margin-bottom: .25rem;
+    }
+
+    /* ── "Create All as Tasks" button inside breakdown row ── */
+    .btn-create-sub {
+      padding: .3rem .85rem;
+      background: #4361ee;
+      color: #fff;
+      font-size: .82rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-create-sub:hover    { background: #3451d1; }
+    .btn-create-sub:disabled { opacity: .5; cursor: default; }
+    .sub-feedback {
+      display: inline-block;
+      font-size: .82rem;
+      font-style: normal;
+      margin-left: .6rem;
+      vertical-align: middle;
+    }
+
+    /* ── AI suggestion result card ── */
+    .suggest-card {
+      background: #f8f9ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 6px;
+      padding: 1rem 1.1rem;
+      margin-top: .85rem;
+    }
+    .kv {
+      display: flex;
+      gap: .75rem;
+      margin-bottom: .3rem;
+      font-size: .875rem;
+      line-height: 1.5;
+    }
+    .kv-key {
+      width: 90px;
+      flex-shrink: 0;
+      font-weight: 600;
+      color: #6b7280;
+    }
+    /* Prevent very long AI description from overflowing the card */
+    .kv-val { color: #1f2937; overflow-wrap: break-word; word-break: break-word; min-width: 0; }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <h1>📋 Task Manager</h1>
+    <p>Create and track tasks, or use AI to suggest, summarise, and break down complex work.</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ Task List -->
+  <section>
+    <div class="section-head"
+         style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem">
+      <div>
+        <h2>All Tasks</h2>
+        <p>
+          <strong>✓ Done</strong> — mark complete &nbsp;·&nbsp;
+          <strong>✕ Delete</strong> — remove &nbsp;·&nbsp;
+          <strong>💬 Summarize</strong> — AI plain-English overview (click again to hide) &nbsp;·&nbsp;
+          <strong>🔀 Breakdown</strong> — AI subtask suggestions (click again to hide)
+        </p>
+      </div>
+      <button class="btn btn-secondary" onclick="loadTasks()"
+              style="flex-shrink:0;margin-top:.1rem">↻ Refresh</button>
+    </div>
+    <div id="task-list-msg"></div>
+    <div id="task-table-wrapper" class="table-scroll">
+      <p style="color:#9ca3af;font-size:.875rem;padding:.5rem 0">Loading…</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ Create Task -->
+  <section>
+    <div class="section-head">
+      <h2>Create Task</h2>
+      <p>Fields marked * are required.</p>
+    </div>
+    <form id="create-form" onsubmit="createTask(event)">
+      <label for="c-title">Title *</label>
+      <input id="c-title" type="text"
+             placeholder="e.g. Submit quarterly report" required />
+
+      <label for="c-desc">Description</label>
+      <textarea id="c-desc"
+                placeholder="Optional — what does 'done' look like?"></textarea>
+
+      <div class="form-row">
+        <div>
+          <label for="c-due">Due Date</label>
+          <input id="c-due" type="date" />
+        </div>
+        <div>
+          <label for="c-priority">Priority *</label>
+          <select id="c-priority">
+            <option value="LOW">Low</option>
+            <option value="MEDIUM" selected>Medium</option>
+            <option value="HIGH">High</option>
+          </select>
+        </div>
+        <div>
+          <label for="c-status">Status *</label>
+          <select id="c-status">
+            <option value="TODO" selected>To Do</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="DONE">Done</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" type="submit" style="margin-top:1rem">
+        ➕ Create Task
+      </button>
+      <div id="create-msg"></div>
+    </form>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ AI Suggest -->
+  <section>
+    <div class="section-head">
+      <h2>✨ AI Task Suggestion</h2>
+      <p>
+        Describe what you need to do in plain English. The AI returns a structured
+        task — review it, then click <strong>Save as Task</strong> to add it to your list.
+      </p>
+    </div>
+    <label for="suggest-text">Your description</label>
+    <textarea id="suggest-text" style="min-height:72px"
+      placeholder='e.g. "Remind me to submit the quarterly report before Friday"'></textarea>
+    <button class="btn btn-primary" onclick="getSuggestion()"
+            style="margin-top:.85rem">Get Suggestion</button>
+    <div id="suggest-result"></div>
+  </section>
+
+  <script>
+    const API = '/tasks';
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    function esc(str) {
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function showMsg(id, html, type /* 'ok'|'err'|'info' */) {
+      document.getElementById(id).innerHTML =
+        `<div class="msg msg-${type}">${html}</div>`;
+    }
+    function clearMsg(id) { document.getElementById(id).innerHTML = ''; }
+
+    function badge(v) {
+      return `<span class="badge ${esc(v)}">${esc(v.replace('_', ' '))}</span>`;
+    }
+    function dash(v) {
+      return v || '<span style="color:#d1d5db">—</span>';
+    }
+
+    async function apiFetch(url, opts = {}) {
+      const res  = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' }, ...opts
+      });
+      const text = await res.text();
+      let body;
+      try { body = JSON.parse(text); } catch { body = text; }
+      if (!res.ok) {
+        const msg = body?.message
+          ? body.message + (body.errors ? '\n' + body.errors.join('\n') : '')
+          : (typeof body === 'string' ? body : `HTTP ${res.status}`);
+        throw new Error(msg);
+      }
+      return body;
+    }
+
+    // ── Load & render task list ───────────────────────────────────────────────
+
+    async function loadTasks() {
+      clearMsg('task-list-msg');
+      const wrap = document.getElementById('task-table-wrapper');
+      try {
+        const tasks = await apiFetch(API);
+        if (!tasks.length) {
+          wrap.innerHTML =
+            '<p style="color:#9ca3af;font-size:.875rem;padding:.5rem 0">' +
+            'No tasks yet — create one below.</p>';
+          return;
+        }
+        wrap.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th class="col-id">#</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Due</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tasks.map(t => {
+                const tj = JSON.stringify(t).replace(/"/g, '&quot;');
+                return `
+                <tr>
+                  <td class="col-id">${t.id}</td>
+                  <td class="col-title">${esc(t.title)}</td>
+                  <td class="col-desc"
+                      title="${t.description ? esc(t.description) : ''}">${
+                    t.description
+                      ? esc(t.description)
+                      : '<span style="color:#d1d5db">—</span>'
+                  }</td>
+                  <td class="col-due">${dash(t.dueDate)}</td>
+                  <td class="col-badge">${badge(t.priority)}</td>
+                  <td class="col-badge">${badge(t.status)}</td>
+                  <td class="col-actions">
+                    <div class="act-group">
+                      <button class="btn-act ba-done"
+                        ${t.status === 'DONE'
+                          ? 'disabled title="Already done"'
+                          : `onclick="markDone(${tj})"`}>✓ Done</button>
+                      <button class="btn-act ba-delete"
+                        onclick="deleteTask(${t.id}, ${tj})">✕ Delete</button>
+                      <button class="btn-act ba-summarize"
+                        onclick="summarizeTask(${t.id})">💬 Summarize</button>
+                      <button class="btn-act ba-breakdown"
+                        onclick="breakdownTask(${tj})">🔀 Breakdown</button>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr class="summary-row detail-row" id="summary-row-${t.id}"
+                    style="display:none">
+                  <td colspan="7">
+                    <div class="row-label">💬 AI Summary</div>
+                    <div class="row-body" id="summary-cell-${t.id}">Summarizing…</div>
+                  </td>
+                </tr>
+
+                <tr class="breakdown-row detail-row" id="breakdown-row-${t.id}"
+                    style="display:none">
+                  <td colspan="7" id="breakdown-cell-${t.id}">
+                    <div class="row-label">🔀 Suggested Subtasks</div>
+                    <div class="row-body" id="breakdown-body-${t.id}">Breaking down…</div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`;
+      } catch (err) {
+        showMsg('task-list-msg', 'Failed to load tasks: ' + esc(err.message), 'err');
+        wrap.innerHTML = '';
+      }
+    }
+
+    // ── Create task ───────────────────────────────────────────────────────────
+
+    async function createTask(e) {
+      e.preventDefault();
+      clearMsg('create-msg');
+      const body = {
+        title:       document.getElementById('c-title').value.trim(),
+        description: document.getElementById('c-desc').value.trim() || null,
+        dueDate:     document.getElementById('c-due').value || null,
+        priority:    document.getElementById('c-priority').value,
+        status:      document.getElementById('c-status').value
+      };
+      try {
+        const task = await apiFetch(API, { method: 'POST', body: JSON.stringify(body) });
+        showMsg('create-msg',
+          `Task #${task.id} created: <strong>${esc(task.title)}</strong>`, 'ok');
+        document.getElementById('create-form').reset();
+        document.getElementById('c-priority').value = 'MEDIUM';
+        document.getElementById('c-status').value   = 'TODO';
+        loadTasks();
+      } catch (err) {
+        showMsg('create-msg', esc(err.message), 'err');
+      }
+    }
+
+    // ── Mark Done ─────────────────────────────────────────────────────────────
+
+    async function markDone(task) {
+      try {
+        await apiFetch(`${API}/${task.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            title:       task.title,
+            description: task.description || null,
+            dueDate:     task.dueDate     || null,
+            priority:    task.priority,
+            status:      'DONE'
+          })
+        });
+        loadTasks();
+      } catch (err) {
+        showMsg('task-list-msg',
+          `Could not mark task #${task.id} as done: ${esc(err.message)}`, 'err');
+      }
+    }
+
+    // ── Delete ────────────────────────────────────────────────────────────────
+
+    async function deleteTask(id, task) {
+      if (!confirm(`Delete task #${id} "${task.title}"? This cannot be undone.`)) return;
+      try {
+        await apiFetch(`${API}/${id}`, { method: 'DELETE' });
+        loadTasks();
+      } catch (err) {
+        showMsg('task-list-msg',
+          `Could not delete task #${id}: ${esc(err.message)}`, 'err');
+      }
+    }
+
+    // ── AI Suggest ────────────────────────────────────────────────────────────
+
+    async function getSuggestion() {
+      const text     = document.getElementById('suggest-text').value.trim();
+      const resultEl = document.getElementById('suggest-result');
+
+      if (!text) {
+        showMsg('suggest-result', 'Please enter a description first.', 'err');
+        return;
+      }
+
+      showMsg('suggest-result', 'Thinking…', 'info');
+
+      try {
+        const s = await apiFetch(`${API}/suggest`,
+          { method: 'POST', body: JSON.stringify({ text }) });
+
+        resultEl.innerHTML = `
+          <div class="suggest-card">
+            <div class="kv">
+              <span class="kv-key">Title</span>
+              <span class="kv-val">${esc(s.title)}</span>
+            </div>
+            <div class="kv">
+              <span class="kv-key">Description</span>
+              <span class="kv-val">${s.description
+                ? esc(s.description)
+                : '<span style="color:#d1d5db">—</span>'}</span>
+            </div>
+            <div class="kv">
+              <span class="kv-key">Due Date</span>
+              <span class="kv-val">${s.dueDate || '—'}</span>
+            </div>
+            <div class="kv">
+              <span class="kv-key">Priority</span>
+              <span class="kv-val">${badge(s.priority)}</span>
+            </div>
+            <div class="kv">
+              <span class="kv-key">Status</span>
+              <span class="kv-val">${badge(s.status)}</span>
+            </div>
+            <div style="margin-top:.9rem">
+              <button class="btn btn-primary" style="font-size:.875rem;padding:.4rem 1rem"
+                onclick="saveFromSuggestion(${JSON.stringify(s).replace(/"/g, '&quot;')})">
+                ➕ Save as Task
+              </button>
+            </div>
+          </div>`;
+      } catch (err) {
+        showMsg('suggest-result', 'Suggestion failed: ' + esc(err.message), 'err');
+      }
+    }
+
+    async function saveFromSuggestion(s) {
+      try {
+        const task = await apiFetch(API, {
+          method: 'POST',
+          body: JSON.stringify({
+            title:       s.title,
+            description: s.description || null,
+            dueDate:     s.dueDate     || null,
+            priority:    s.priority,
+            status:      s.status || 'TODO'
+          })
+        });
+        document.getElementById('suggest-text').value = '';
+        showMsg('suggest-result',
+          `Task #${task.id} saved: <strong>${esc(task.title)}</strong>`, 'ok');
+        loadTasks();
+      } catch (err) {
+        showMsg('suggest-result', 'Could not save: ' + esc(err.message), 'err');
+      }
+    }
+
+    // ── Summarize ─────────────────────────────────────────────────────────────
+
+    async function summarizeTask(id) {
+      const row  = document.getElementById(`summary-row-${id}`);
+      const cell = document.getElementById(`summary-cell-${id}`);
+
+      // Toggle off if already open
+      if (row.style.display !== 'none') { row.style.display = 'none'; return; }
+
+      cell.textContent   = 'Summarizing…';
+      row.style.display  = '';
+
+      try {
+        const r = await apiFetch(`${API}/${id}/summarize`, { method: 'POST' });
+        cell.textContent = r.summary;
+      } catch (err) {
+        cell.style.fontStyle = 'normal';
+        cell.style.color     = '#991b1b';
+        cell.textContent     = 'Could not summarize: ' + err.message;
+      }
+    }
+
+    // ── Breakdown ─────────────────────────────────────────────────────────────
+
+    // Keyed by task id; stores { subtasks, task } so createSubtasks() can read it
+    const _cache = {};
+
+    async function breakdownTask(task) {
+      const id   = task.id;
+      const row  = document.getElementById(`breakdown-row-${id}`);
+      const body = document.getElementById(`breakdown-body-${id}`);
+
+      // Toggle off if already open
+      if (row.style.display !== 'none') { row.style.display = 'none'; return; }
+
+      // Show heading immediately, body shows loading text
+      body.textContent  = 'Breaking down…';
+      row.style.display = '';
+
+      try {
+        const r = await apiFetch(`${API}/${id}/breakdown`, { method: 'POST' });
+        if (!r.subtasks || !r.subtasks.length) {
+          body.textContent = 'No subtasks suggested.';
+          return;
+        }
+
+        _cache[id] = { subtasks: r.subtasks, task };
+
+        const items = r.subtasks.map(s => `<li>${esc(s)}</li>`).join('');
+        body.style.fontStyle = 'normal';
+        body.innerHTML =
+          `<ol style="margin:.35rem 0 .8rem 1.3rem;padding:0">${items}</ol>` +
+          `<button class="btn-create-sub" id="btn-cs-${id}"
+              onclick="createSubtasks(${id})">➕ Create All as Tasks</button>` +
+          `<span class="sub-feedback" id="sub-fb-${id}"></span>`;
+      } catch (err) {
+        body.style.fontStyle = 'normal';
+        body.style.color     = '#991b1b';
+        body.textContent     = 'Could not break down: ' + err.message;
+      }
+    }
+
+    async function createSubtasks(id) {
+      const cached = _cache[id];
+      if (!cached) return;
+      const { subtasks, task } = cached;
+
+      const btn = document.getElementById(`btn-cs-${id}`);
+      const fb  = document.getElementById(`sub-fb-${id}`);
+
+      btn.disabled    = true;
+      btn.textContent = 'Creating…';
+      fb.textContent  = '';
+      fb.style.color  = '';
+
+      let created = 0, failed = 0;
+      for (const title of subtasks) {
+        try {
+          await apiFetch(API, {
+            method: 'POST',
+            body: JSON.stringify({
+              title,
+              description: `Subtask of task #${task.id}: ${task.title}`,
+              dueDate:     task.dueDate  || null,
+              priority:    task.priority,
+              status:      'TODO'
+            })
+          });
+          created++;
+        } catch (_) { failed++; }
+      }
+
+      if (failed === 0) {
+        // All created — replace button with permanent success label
+        btn.textContent = `✅ ${created} subtask${created !== 1 ? 's' : ''} created`;
+      } else {
+        // Partial failure — show counts; do NOT re-enable to avoid creating duplicates
+        btn.textContent = `⚠ ${created} of ${subtasks.length} created`;
+        fb.textContent  = `${failed} failed — check the task list and create the rest manually.`;
+        fb.style.color  = '#92400e';
+      }
+
+      loadTasks();
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    loadTasks();
+  </script>
+</body>
+</html>
